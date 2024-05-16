@@ -1,0 +1,29 @@
+---This is my snake ai project---
+
+-----------------------------------
+
+To just play the normal game by yourself go in the run.py file and execute the run_normal_game() and commend the
+other out.
+
+-----------------------------------
+
+To start training an ai, run run_ai_agent(graphics={bool}, graph={bool}, fps={Number of frames per second},
+gamma={Discount rate -> int between 1 and 0 the higher the safer it plays}).
+The graphics argument can be set to True so it will render the snake in each training or to False, which is faster.
+You can also disable the graph.
+The fps are just the rate on how fast the training is, more fps means faster but it will still be limited to the
+computers performance.
+
+-----------------------------------
+
+The trained Model will be saved in the "-" folder under "model".
+! If you want to save the model, copy it in the "SavedModels" folder.
+
+-----------------------------------
+
+To load a model run load_model_and_play(file_name={The name of the model to load in saved models},
+game_fps={frames per second}).
+
+-----------------------------------
+
+Model files are saved with the hiddenlayer combo
