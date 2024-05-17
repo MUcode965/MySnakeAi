@@ -98,9 +98,9 @@ class SnakeAIGame:
         game_over = False
         # Check if game over
         # Game over also when active for to long without eating
-        if self.check_fail() or self.frame_iterarion > 87 * len(self.snake.body):
+        if self.check_fail() or self.frame_iterarion > 100 * len(self.snake.body):
             game_over = True
-            reward = -20
+            reward = -10
             return reward, game_over, self.score
 
         # Checking if food has been eaten

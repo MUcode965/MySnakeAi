@@ -116,3 +116,18 @@ class SnakeGameNormal:
         self.clock.tick(c.GAME_FPS)
 
         return game_over, self.score
+
+
+if __name__ == '__main__':
+    game = SnakeGameNormal()
+
+    # Game loop
+    while True:
+        game_over, score = game.play_step()
+
+        if game_over:
+            break
+
+    print("Score: ", score)
+
+    pygame.quit()

@@ -3,17 +3,14 @@ import random
 import numpy
 from collections import deque
 from pygame.math import Vector2
-from fruit import Fruit
-from snake import Snake
-
-from game import SnakeAIGame, Snake, Fruit
+from game import SnakeAIGame
 from model import Linear_QNet, QTrainer
 from helper import plot
 
 
 MAX_MEMORY = 200000
-BATCH_SIZE = 1000
-LR = 0.0001  # Learning rate
+BATCH_SIZE = 3000
+LR = 0.01  # Learning rate
 
 
 class Agent:
@@ -23,10 +20,144 @@ class Agent:
         self.epsilon = 0  # Randomness
         self.gamma = gamma  # Discount rate must be smaller then 1
         self.memory = deque(maxlen=MAX_MEMORY)
-        self.model = Linear_QNet(11, 128, 64, 3)
+        self.model = Linear_QNet(12, 120, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
-    def get_state(self, game):
+    # TODO i'm stupid MOVE DIRECTION check works bettre
+    def check_left(self, game) -> int:
+        head = game.snake.body[0]
+        free_space = 0
+        x = -1
+        while True:
+            check_vec = head + Vector2(x, 0)
+            x -= 1
+            if game.check_fail(check_vec):
+                break
+            free_space += 1
+        return free_space
+
+    def check_right(self, game) -> int:
+        head = game.snake.body[0]
+        free_space = 0
+        x = 1
+        while True:
+            check_vec = head + Vector2(x, 0)
+            x += 1
+            if game.check_fail(check_vec):
+                break
+            free_space += 1
+        return free_space
+
+    def check_up(self, game) -> int:
+        head = game.snake.body[0]
+        free_space = 0
+        y = -1
+        while True:
+            check_vec = head + Vector2(0, y)
+            y -= 1
+            if game.check_fail(check_vec):
+                break
+            free_space += 1
+        return free_space
+
+    def check_down(self, game) -> int:
+        head = game.snake.body[0]
+        free_space = 0
+        y = 1
+        while True:
+            check_vec = head + Vector2(0, y)
+            y += 1
+            if game.check_fail(check_vec):
+                break
+            free_space += 1
+        return free_space
+
+    def check_free_space_straight(self, game) -> int:
+        moving_direction = game.snake.direction  # exp.: Vector2(0, 1)
+        free_space = 0
+
+        if moving_direction.x == 0:
+            if moving_direction.y == 1:
+                free_space = self.check_down(game)
+            else:
+                free_space = self.check_up(game)
+        elif moving_direction.y == 0:
+            if moving_direction.x == 1:
+                free_space = self.check_right(game)
+            else:
+                free_space = self.check_left(game)
+
+        return free_space
+
+    def check_free_space_right(self, game) -> int:
+        moving_direction = game.snake.direction
+        free_space = 0
+
+        # clock_wise = [right, Down, left, Up]
+        # idx = clock_wise.index(moving_direction)
+
+        if moving_direction.x == 0:
+            if moving_direction.y == 1:
+                free_space = self.check_right(game)
+            else:
+                free_space = self.check_left(game)
+        elif moving_direction.y == 0:
+            if moving_direction.x == 1:
+                free_space = self.check_up(game)
+            else:
+                free_space = self.check_down(game)
+
+        return free_space
+
+    def check_free_space_left(self, game) -> int:
+        moving_direction = game.snake.direction
+        free_space = 0
+
+        # clock_wise = [right, Down, left, Up]
+        # idx = clock_wise.index(moving_direction)
+
+        if moving_direction.x == 0:
+            if moving_direction.y == 1:
+                free_space = self.check_left(game)
+            else:
+                free_space = self.check_right(game)
+        elif moving_direction.y == 0:
+            if moving_direction.x == 1:
+                free_space = self.check_down(game)
+            else:
+                free_space = self.check_up(game)
+
+        return free_space
+
+    def steps_until_fruit_right(self, game) -> int:
+        steps = 0
+        if game.fruit.pos.x > game.snake.body[0].x:
+            steps = game.fruit.pos.x - game.snake.body[0].x
+
+        return steps
+
+    def steps_until_fruit_left(self, game) -> int:
+        steps = 0
+        if game.fruit.pos.x < game.snake.body[0].x:
+            steps = game.snake.body[0].x - game.fruit.pos.x
+
+        return steps
+
+    def steps_until_fruit_up(self, game) -> int:
+        steps = 0
+        if game.fruit.pos.y < game.snake.body[0].y:
+            steps = game.snake.body[0].y - game.fruit.pos.y
+
+        return steps
+
+    def steps_until_fruit_down(self, game) -> int:
+        steps = 0
+        if game.fruit.pos.y > game.snake.body[0].y:
+            steps = game.fruit.pos.y - game.snake.body[0].y
+
+        return steps
+
+    def get_state(self, game, frame_iteration):
         head = game.snake.body[0]
 
         vec_l = Vector2(head.x - 1, head.y)
@@ -34,30 +165,20 @@ class Agent:
         vec_u = Vector2(head.x, head.y - 1)
         vec_d = Vector2(head.x, head.y + 1)
 
-        # TODO bigger area to check
         dir_l = game.snake.direction == Vector2(-1, 0)
         dir_r = game.snake.direction == Vector2(1, 0)
         dir_u = game.snake.direction == Vector2(0, -1)
         dir_d = game.snake.direction == Vector2(0, 1)
 
         state = [
-            # Danger straight
-            (dir_r and game.check_fail(vec_r)) or
-            (dir_l and game.check_fail(vec_l)) or
-            (dir_u and game.check_fail(vec_u)) or
-            (dir_d and game.check_fail(vec_d)),
+            # Free space straight
+            self.check_free_space_straight(game) / 100,
 
-            # Danger right
-            (dir_u and game.check_fail(vec_r)) or
-            (dir_d and game.check_fail(vec_l)) or
-            (dir_l and game.check_fail(vec_u)) or
-            (dir_r and game.check_fail(vec_d)),
+            # Free space right
+            self.check_free_space_right(game) / 100,
 
-            # Danger left
-            (dir_d and game.check_fail(vec_r)) or
-            (dir_u and game.check_fail(vec_l)) or
-            (dir_r and game.check_fail(vec_u)) or
-            (dir_l and game.check_fail(vec_d)),
+            # Free space left
+            self.check_free_space_left(game) / 100,
 
             # Move direction
             dir_l,
@@ -66,10 +187,13 @@ class Agent:
             dir_d,
 
             # Food location
-            game.fruit.pos.x < game.snake.body[0].x,  # food left
-            game.fruit.pos.x > game.snake.body[0].x,  # food right
-            game.fruit.pos.y < game.snake.body[0].y,  # food up
-            game.fruit.pos.y > game.snake.body[0].y  # food down
+            self.steps_until_fruit_left(game) / 100,  # food left
+            self.steps_until_fruit_right(game) / 100,  # food right
+            self.steps_until_fruit_up(game) / 100,  # food up
+            self.steps_until_fruit_down(game) / 100,  # food down
+
+            # Moves until self destruction
+            (100 * len(game.snake.body) - frame_iteration) / 1000
         ]
 
         return numpy.array(state, dtype=int)
@@ -90,7 +214,7 @@ class Agent:
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def get_action(self, state):
-        self.epsilon = 87 - self.num_of_games
+        self.epsilon = 80 - self.num_of_games
         final_move = [0, 0, 0]
         if random.randint(0, 200) < self.epsilon:
             move = random.randint(0, 2)
@@ -102,7 +226,6 @@ class Agent:
             final_move[move] = 1
 
         return final_move
-    # TODO fixed epsilon training sample
 
 
 def train(graphics: bool, graph: bool, fps, gamma: float):
@@ -112,18 +235,17 @@ def train(graphics: bool, graph: bool, fps, gamma: float):
     record = 0
     agent = Agent(gamma)
     game = SnakeAIGame(graphics=graphics, fps=fps)
-    # TODO the beginning of the statistic
 
     while True:
         # get old state
-        state_old = agent.get_state(game)
+        state_old = agent.get_state(game, game.frame_iterarion)
 
         # get move
         final_move = agent.get_action(state_old)
 
         # perform move and get new state
         reward, done, score = game.play_step(final_move)
-        state_new = agent.get_state(game)
+        state_new = agent.get_state(game, game.frame_iterarion)
 
         # train short memory
         agent.train_short_memory(state_old, final_move, reward, state_new, done)
